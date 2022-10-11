@@ -35,6 +35,7 @@ public class MessageOnlyChannelHandler extends WrappedChannelHandler {
 
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+        // 只有请求响应消息派发到业务线程池
         ExecutorService cexecutor = getExecutorService();
         try {
             cexecutor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));

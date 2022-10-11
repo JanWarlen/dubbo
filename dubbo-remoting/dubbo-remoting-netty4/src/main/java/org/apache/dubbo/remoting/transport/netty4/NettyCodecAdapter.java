@@ -86,9 +86,11 @@ final class NettyCodecAdapter {
             try {
                 // decode object.
                 do {
+                    // 记录读起始位置
                     int saveReaderIndex = message.readerIndex();
                     Object msg = codec.decode(channel, message);
                     if (msg == Codec2.DecodeResult.NEED_MORE_INPUT) {
+                        // 半包，重置读指针
                         message.readerIndex(saveReaderIndex);
                         break;
                     } else {

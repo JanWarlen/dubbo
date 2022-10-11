@@ -53,13 +53,14 @@ public class InvokerInvocationHandler implements InvocationHandler {
         if ("equals".equals(methodName) && parameterTypes.length == 1) {
             return invoker.equals(args[0]);
         }
-
+        // 调用 MockClusterInvoker
         return invoker.invoke(createInvocation(method, args)).recreate();
     }
 
     private RpcInvocation createInvocation(Method method, Object[] args) {
         RpcInvocation invocation = new RpcInvocation(method, args);
         if (RpcUtils.hasFutureReturnType(method)) {
+            // 方法返回类型为 CompletableFuture
             invocation.setAttachment(Constants.FUTURE_RETURNTYPE_KEY, "true");
             invocation.setAttachment(Constants.ASYNC_KEY, "true");
         }

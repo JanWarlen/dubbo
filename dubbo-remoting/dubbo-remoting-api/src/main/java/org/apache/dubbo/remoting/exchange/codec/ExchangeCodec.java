@@ -66,8 +66,10 @@ public class ExchangeCodec extends TelnetCodec {
     @Override
     public void encode(Channel channel, ChannelBuffer buffer, Object msg) throws IOException {
         if (msg instanceof Request) {
+            // 请求编码
             encodeRequest(channel, buffer, (Request) msg);
         } else if (msg instanceof Response) {
+            // 响应编码
             encodeResponse(channel, buffer, (Response) msg);
         } else {
             super.encode(channel, buffer, msg);
@@ -102,11 +104,13 @@ public class ExchangeCodec extends TelnetCodec {
             return super.decode(channel, buffer, readable, header);
         }
         // check length.
+        // 协议头长度确认
         if (readable < HEADER_LENGTH) {
             return DecodeResult.NEED_MORE_INPUT;
         }
 
         // get data length.
+        // 数据长度确认
         int len = Bytes.bytes2int(header, 12);
         checkPayload(channel, len);
 
@@ -116,9 +120,11 @@ public class ExchangeCodec extends TelnetCodec {
         }
 
         // limit input stream.
+        // 读取指定长度 len，避免粘包时读取过多无法解析
         ChannelBufferInputStream is = new ChannelBufferInputStream(buffer, len);
 
         try {
+            // 解析数据
             return decodeBody(channel, is, header);
         } finally {
             if (is.available() > 0) {
@@ -135,10 +141,13 @@ public class ExchangeCodec extends TelnetCodec {
     }
 
     protected Object decodeBody(Channel channel, InputStream is, byte[] header) throws IOException {
+        // 请求类型，消费端序列化协议类型
         byte flag = header[2], proto = (byte) (flag & SERIALIZATION_MASK);
         // get request id.
+        // 请求ID
         long id = Bytes.bytes2long(header, 4);
         if ((flag & FLAG_REQUEST) == 0) {
+            // 响应解码
             // decode response.
             Response res = new Response(id);
             if ((flag & FLAG_EVENT) != 0) {
@@ -148,14 +157,18 @@ public class ExchangeCodec extends TelnetCodec {
             byte status = header[3];
             res.setStatus(status);
             try {
+                // 反序列化
                 ObjectInput in = CodecSupport.deserialize(channel.getUrl(), is, proto);
                 if (status == Response.OK) {
                     Object data;
                     if (res.isHeartbeat()) {
+                        // 心跳
                         data = decodeHeartbeatData(channel, in);
                     } else if (res.isEvent()) {
+                        // 事件
                         data = decodeEventData(channel, in);
                     } else {
+                        // 数据
                         data = decodeResponseData(channel, in, getRequestData(id));
                     }
                     res.setResult(data);
@@ -168,6 +181,7 @@ public class ExchangeCodec extends TelnetCodec {
             }
             return res;
         } else {
+            // 请求解码
             // decode request.
             Request req = new Request(id);
             req.setVersion(Version.getProtocolVersion());
@@ -176,6 +190,7 @@ public class ExchangeCodec extends TelnetCodec {
                 req.setEvent(true);
             }
             try {
+                // 反序列化
                 ObjectInput in = CodecSupport.deserialize(channel.getUrl(), is, proto);
                 Object data;
                 if (req.isHeartbeat()) {
@@ -208,13 +223,17 @@ public class ExchangeCodec extends TelnetCodec {
     }
 
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
+        // 获取序列化扩展实现
         Serialization serialization = getSerialization(channel);
         // header.
+        // Dubbo 协议扩展头字节数组
         byte[] header = new byte[HEADER_LENGTH];
         // set magic number.
+        // 魔数
         Bytes.short2bytes(MAGIC, header);
 
         // set request and serialization flag.
+        // 设置请求类型与序列化类型，标记到协议头
         header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
 
         if (req.isTwoWay()) {
@@ -225,9 +244,11 @@ public class ExchangeCodec extends TelnetCodec {
         }
 
         // set request id.
+        // 请求ID
         Bytes.long2bytes(req.getId(), header, 4);
 
         // encode request data.
+        // 编码请求数据
         int savedWriteIndex = buffer.writerIndex();
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
         ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);

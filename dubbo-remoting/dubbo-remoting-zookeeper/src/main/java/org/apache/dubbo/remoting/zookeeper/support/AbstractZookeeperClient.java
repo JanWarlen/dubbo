@@ -63,6 +63,8 @@ public abstract class AbstractZookeeperClient<TargetDataListener, TargetChildLis
         }
         int i = path.lastIndexOf('/');
         if (i > 0) {
+            // 递归创建zk节点
+            // 最后一个节点是服务，之前的是固定，因此需要创建持久节点
             create(path.substring(0, i), false);
         }
         if (ephemeral) {

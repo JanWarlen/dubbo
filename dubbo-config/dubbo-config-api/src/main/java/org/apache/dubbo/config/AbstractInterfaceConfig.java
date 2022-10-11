@@ -437,11 +437,14 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
      */
     void checkMock(Class<?> interfaceClass) {
         if (ConfigUtils.isEmpty(mock)) {
+            // 未设置mock
             return;
         }
-
+        // 获取格式化mock方式
         String normalizedMock = MockInvoker.normalizeMock(mock);
+        // 检查是否合法
         if (normalizedMock.startsWith(Constants.RETURN_PREFIX)) {
+            // return
             normalizedMock = normalizedMock.substring(Constants.RETURN_PREFIX.length()).trim();
             try {
                 //Check whether the mock value is legal, if it is illegal, throw exception
@@ -451,6 +454,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
                         "mock=\"" + mock + "\" />");
             }
         } else if (normalizedMock.startsWith(Constants.THROW_PREFIX)) {
+            // throw
             normalizedMock = normalizedMock.substring(Constants.THROW_PREFIX.length()).trim();
             if (ConfigUtils.isNotEmpty(normalizedMock)) {
                 try {
@@ -462,6 +466,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
                 }
             }
         } else {
+            // 检查 mock 接口实现类是否符合规则
             //Check whether the mock class is a implementation of the interfaceClass, and if it has a default constructor
             MockInvoker.getMockObject(normalizedMock, interfaceClass);
         }

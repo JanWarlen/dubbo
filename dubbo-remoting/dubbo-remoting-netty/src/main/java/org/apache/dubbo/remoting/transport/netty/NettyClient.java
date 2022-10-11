@@ -56,6 +56,8 @@ public class NettyClient extends AbstractClient {
     private volatile Channel channel; // volatile, please copy reference to use
 
     public NettyClient(final URL url, final ChannelHandler handler) throws RemotingException {
+        // wrapChannelHandler 装饰增强handler
+        // 在 Dispatcher 中可以使用线程池处理响应
         super(url, wrapChannelHandler(url, handler));
     }
 

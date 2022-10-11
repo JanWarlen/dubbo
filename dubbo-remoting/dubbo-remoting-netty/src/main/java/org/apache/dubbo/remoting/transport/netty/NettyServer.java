@@ -59,6 +59,8 @@ public class NettyServer extends AbstractServer implements Server {
     private org.jboss.netty.channel.Channel channel;
 
     public NettyServer(URL url, ChannelHandler handler) throws RemotingException {
+        // 此处 handler 被装饰封装强化
+        // 固定 MultiMessageHandler -> HeartbeatHandler -> AllChannelHandler -> ChannelEventRunnable
         super(url, ChannelHandlers.wrap(handler, ExecutorUtil.setThreadName(url, SERVER_THREAD_POOL_NAME)));
     }
 
@@ -69,7 +71,8 @@ public class NettyServer extends AbstractServer implements Server {
         ExecutorService worker = Executors.newCachedThreadPool(new NamedThreadFactory("NettyServerWorker", true));
         ChannelFactory channelFactory = new NioServerSocketChannelFactory(boss, worker, getUrl().getPositiveParameter(Constants.IO_THREADS_KEY, Constants.DEFAULT_IO_THREADS));
         bootstrap = new ServerBootstrap(channelFactory);
-
+        // this 是装饰模式封装过的 handler， 使用了组合模式
+        // nettyHandler 会将 connect/disconnect/receive/write/exception 转发到内部的handler中
         final NettyHandler nettyHandler = new NettyHandler(getUrl(), this);
         channels = nettyHandler.getChannels();
         // https://issues.jboss.org/browse/NETTY-365

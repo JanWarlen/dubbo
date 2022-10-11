@@ -22,6 +22,7 @@ import org.apache.dubbo.remoting.Dispatcher;
 
 /**
  * Direct dispatcher
+ * 所有消息均在IO线程上直接执行
  */
 public class DirectDispatcher implements Dispatcher {
 

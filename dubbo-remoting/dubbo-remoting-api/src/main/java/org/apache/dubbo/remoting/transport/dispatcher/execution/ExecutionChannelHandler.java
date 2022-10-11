@@ -44,6 +44,7 @@ public class ExecutionChannelHandler extends WrappedChannelHandler {
     public void received(Channel channel, Object message) throws RemotingException {
         ExecutorService cexecutor = getExecutorService();
         if (message instanceof Request) {
+            // 请求类消息交由业务线程池处理
             try {
                 cexecutor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));
             } catch (Throwable t) {
@@ -65,6 +66,7 @@ public class ExecutionChannelHandler extends WrappedChannelHandler {
                 throw new ExecutionException(message, channel, getClass() + " error when process received event.", t);
             }
         } else {
+            // 其他均在IO线程池处理
             handler.received(channel, message);
         }
     }

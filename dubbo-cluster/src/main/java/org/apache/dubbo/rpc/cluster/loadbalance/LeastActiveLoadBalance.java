@@ -39,14 +39,19 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
         // Number of invokers
+        // 服务提供者个数
         int length = invokers.size();
         // The least active value of all invokers
+        // 被调用的最少次数
         int leastActive = -1;
         // The number of invokers having the same least active value (leastActive)
+        // 相同 leastActive 的服务提供者个数
         int leastCount = 0;
         // The index of invokers having the same least active value (leastActive)
+        // 相同 leastActive 的服务提供者 索引
         int[] leastIndexes = new int[length];
         // the weight of every invokers
+        // 权重
         int[] weights = new int[length];
         // The sum of the warmup weights of all the least active invokes
         int totalWeight = 0;
@@ -57,15 +62,19 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
 
 
         // Filter out all the least active invokers
+        // 过滤出最小调用次数的invoker
         for (int i = 0; i < length; i++) {
             Invoker<T> invoker = invokers.get(i);
             // Get the active number of the invoke
+            // 获取该服务提供者被调用次数
             int active = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName()).getActive();
             // Get the weight of the invoke configuration. The default value is 100.
+            // 获取权重
             int afterWarmup = getWeight(invoker, invocation);
             // save for later use
             weights[i] = afterWarmup;
             // If it is the first invoker or the active number of the invoker is less than the current least active number
+            // 筛选最小调用次数
             if (leastActive == -1 || active < leastActive) {
                 // Reset the active number of the current invoker to the least active number
                 leastActive = active;
@@ -81,7 +90,9 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
                 sameWeight = true;
                 // If current invoker's active value equals with leaseActive, then accumulating.
             } else if (active == leastActive) {
+                // 当前 invoker 是最小调用次数
                 // Record the index of the least active invoker in leastIndexs order
+                // 记录索引
                 leastIndexes[leastCount++] = i;
                 // Accumulate the total weight of the least active invoker
                 totalWeight += afterWarmup;
@@ -94,15 +105,19 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
         }
         // Choose an invoker from all the least active invokers
         if (leastCount == 1) {
+            // 最小调用者只有一个，不用筛选
             // If we got exactly one invoker having the least active value, return this invoker directly.
             return invokers.get(leastIndexes[0]);
         }
         if (!sameWeight && totalWeight > 0) {
+            // 服务提供者有不同的权重设置
             // If (not every invoker has the same weight & at least one invoker's weight>0), select randomly based on 
             // totalWeight.
+            // 随机一个目标权重
             int offsetWeight = ThreadLocalRandom.current().nextInt(totalWeight);
             // Return a invoker based on the random value.
             for (int i = 0; i < leastCount; i++) {
+                // 计算随机权重坐落在哪个 invoker 中
                 int leastIndex = leastIndexes[i];
                 offsetWeight -= weights[leastIndex];
                 if (offsetWeight < 0) {
@@ -111,6 +126,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
             }
         }
         // If all invokers have the same weight value or totalWeight=0, return evenly.
+        // 所有服务提供者权重相等，则通过索引随机即可
         return invokers.get(leastIndexes[ThreadLocalRandom.current().nextInt(leastCount)]);
     }
 }

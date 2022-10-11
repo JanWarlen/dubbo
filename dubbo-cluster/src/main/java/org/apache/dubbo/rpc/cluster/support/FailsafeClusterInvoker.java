@@ -46,10 +46,13 @@ public class FailsafeClusterInvoker<T> extends AbstractClusterInvoker<T> {
     public Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         try {
             checkInvokers(invokers, invocation);
+            // 负载均衡
             Invoker<T> invoker = select(loadbalance, invocation, invokers, null);
+            // 远程调用
             return invoker.invoke(invocation);
         } catch (Throwable e) {
             logger.error("Failsafe ignore exception: " + e.getMessage(), e);
+            // 返回空结果，不抛出异常
             return new RpcResult(); // ignore
         }
     }

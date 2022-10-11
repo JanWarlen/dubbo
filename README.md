@@ -1,3 +1,157 @@
+# 服务发布
+## 服务发布入口
+`org.apache.dubbo.config.ServiceConfig.export`
+### invoker调用链构建
+`org.apache.dubbo.rpc.protocol.ProtocolFilterWrapper#buildInvokerChain`
+
+### 服务发布实现入口
+`org.apache.dubbo.registry.integration.RegistryProtocol#export`
+### 服务注册
+#### 服务注册入口
+`org.apache.dubbo.registry.integration.RegistryProtocol#register`
+
+## 服务接受请求入口
+`org.apache.dubbo.remoting.transport.netty.NettyHandler`
+或者
+`org.apache.dubbo.remoting.transport.netty4.NettyServerHandler`
+实际取决于启动的是哪一个版本，默认情况下，启动 netty4
+> 内部关键的 handler 是经过装饰模式层层封装的
+# 服务消费
+## 服务消费启动入口
+`org.apache.dubbo.config.ReferenceConfig#get`
+启动入口会生成目标接口的代理，通过`org.apache.dubbo.rpc.proxy.InvokerInvocationHandler`进行装饰封装
+
+## 服务消费调用入口
+`org.apache.dubbo.rpc.proxy.InvokerInvocationHandler#invoke`
+默认（JavassistProxyFactory）情况下的代理入口
+
+## 服务消费最终调用入口
+通过启动入口获取代理，正常调用时，会通过代理层层调用，最终转发到具体实现类的invoker中
+正常默认情况下，会通过内部封装的netty客户端调用服务提供端
+`org.apache.dubbo.rpc.protocol.dubbo.DubboInvoker#doInvoke`
+
+## 服务降级
+消费端发起远程调用时，先查看`force:return`是否设置，若设置直接返回mock值，不进行远程调用
+否则进行远程调用，如果远程调用正常，则返回远程调用返回结果
+如果远程调用失败，则查看`force:return`是否设置，如果设置，则返回mock值，否则本次调用失败
+### 服务降级触发入口
+`org.apache.dubbo.rpc.cluster.support.wrapper.MockClusterInvoker#invoke`
+### mock合法性检查入口
+`org.apache.dubbo.config.AbstractInterfaceConfig#checkMock`
+
+## 集群容错
+### 集群容错模式
++ FailOver Cluster : 失败重试
+  + 调用失败后会自动切换到其他服务提供者重试，如果只有一个，将不会切换
++ FailFast Cluster : 快速失败
+  + 调用失败后，立即报错，只会调用1次
++ FailSafe Cluster : 安全失败
+  + 调用出现异常时，忽略异常
++ FailBack Cluster : 失败自动恢复
+  + 调用服务出现异常后，记录失败的请求，根据一定的策略后期再进行重试
++ Forking  Cluster : 并行调用
+  + 并行调用多个服务提供者的服务，只要一个成功则返回
++ BroadCast Cluster : 广播调用
+  + 逐个调用所有服务提供者，任意一次调用异常则本次调用失败
++ 自定义容错策略
+  + 实现接口 `org.apache.dubbo.rpc.cluster.Cluster`
+
+## 负载均衡
+### 负载均衡策略
++ Random LoadBalance : 随机策略
+  + 可设置权重，较均匀
++ RoundRobin LoadBalance : 轮询策略
+  + 按公约后的权重设置轮询比率
++ LeastActive LoadBalance : 最少活跃调用数
+  + 当前正在处理的请求最少的优先选择
++ ConsistenHash LoadBalance : 一致性Hash策略
+  + 确保相同参数的请求转发到同一个提供者
++ 自定义负载均衡策略
+  + 实现接口`org.apache.dubbo.rpc.cluster.LoadBalance`
+  + 继承类`org.apache.dubbo.rpc.cluster.loadbalance.AbstractLoadBalance`
+
+# 线程
+## 线程模型
++ all : AllDispatcher : 所有消息均由业务线程池处理
++ direct : DirectDispatcher : 所有消息由IO线程池处理
++ message : MessageOnlyDispatcher : 请求与响应由业务线程池处理
++ execution : ExecutionDispatcher : 请求由业务线程池处理
++ connection : ConnectionOrderedDispatcher : 连接/断开由IO线程池处理
++ 自定义
+  + 拓展实现接口`org.apache.dubbo.remoting.Dispatcher`
+  + 创建文件/META-INF/dubbo/org.apache.dubbo.remoting.Dispatcher
+  + 文件内容 自定义线程模型名=自定义线程模型实现类全路径
+
+## 线程池策略
++ FixedThreadPool : 固定线程个数线程池
++ LimitedThreadPool : 存在最大线程数线程池，空闲不回收
++ EagerThreadPool : 有核心线程和最大线程数，空闲回收
++ CachedThreadPool : 自适应线程池，空闲回收
++ 自定义策略
+  + 实现拓展接口`org.apache.dubbo.common.threadpool.ThreadPool`
+  + 创建文件/META-INF/dubbo/org.apache.dubbo.common.threadpool.ThreadPool
+  + 文件内容 自定义策略名=自定义策略实现类全路径
+
+# 泛化调用
+## 泛化调用核心
+### 消费端
+`org.apache.dubbo.rpc.filter.GenericImplFilter#invoke`
+### 服务提供端
+`org.apache.dubbo.rpc.filter.GenericFilter#invoke`
+
+# 编码解码
+## 编码核心入口
+`org.apache.dubbo.remoting.exchange.codec.ExchangeCodec#encode`
+
+
+
+# filter 责任链构建
+filter责任链的构造分两部分，一部分根据角色和开关配置决定是否加载，一部分根据url中参数`reference.filter`决定
+
+filter生效group: 代表哪些角色可以加载该filter
+filter 生效配置关键词: 消费端or服务端的url中包含`同名`或`.同名`配置，则filter将会生效加载
+|filter代表词|filter生效group|filter 生效配置关键词|
+|--|--|--|
+exception|[provider]|
+cache|[consumer, provider]|[cache]
+genericimpl|[consumer]|[generic]
+deprecated|[consumer]|[deprecated]
+classloader|[provider]|
+echo|[provider]|
+monitor|[provider, consumer]|
+generic|[provider]|
+timeout|[provider]|
+accesslog|[provider]|[accesslog]
+token|[provider]|[token]
+trace|[provider]|
+executelimit|[provider]|[executes]
+future|[consumer]|
+context|[provider]|
+activelimit|[consumer]|[actives]
+validation|[consumer, provider]|[validation]
+consumercontext|[consumer]|
+
+```java
+"exception" -> {$Proxy7@3007} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=0)"
+"cache" -> {$Proxy7@3058} "@org.apache.dubbo.common.extension.Activate(after=[], value=[cache], before=[], group=[consumer, provider], order=0)"
+"genericimpl" -> {$Proxy7@3060} "@org.apache.dubbo.common.extension.Activate(after=[], value=[generic], before=[], group=[consumer], order=20000)"
+"deprecated" -> {$Proxy7@3062} "@org.apache.dubbo.common.extension.Activate(after=[], value=[deprecated], before=[], group=[consumer], order=0)"
+"classloader" -> {$Proxy7@3064} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=-30000)"
+"echo" -> {$Proxy7@3066} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=-110000)"
+"monitor" -> {$Proxy7@3068} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider, consumer], order=0)"
+"generic" -> {$Proxy7@3070} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=-20000)"
+"timeout" -> {$Proxy7@3072} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=0)"
+"accesslog" -> {$Proxy7@3074} "@org.apache.dubbo.common.extension.Activate(after=[], value=[accesslog], before=[], group=[provider], order=0)"
+"token" -> {$Proxy7@3076} "@org.apache.dubbo.common.extension.Activate(after=[], value=[token], before=[], group=[provider], order=0)"
+"trace" -> {$Proxy7@3078} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=0)"
+"executelimit" -> {$Proxy7@3080} "@org.apache.dubbo.common.extension.Activate(after=[], value=[executes], before=[], group=[provider], order=0)"
+"future" -> {$Proxy7@3082} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[consumer], order=0)"
+"context" -> {$Proxy7@3084} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[provider], order=-10000)"
+"activelimit" -> {$Proxy7@3086} "@org.apache.dubbo.common.extension.Activate(after=[], value=[actives], before=[], group=[consumer], order=0)"
+"validation" -> {$Proxy7@3088} "@org.apache.dubbo.common.extension.Activate(after=[], value=[validation], before=[], group=[consumer, provider], order=10000)"
+"consumercontext" -> {$Proxy7@3090} "@org.apache.dubbo.common.extension.Activate(after=[], value=[], before=[], group=[consumer], order=-10000)"
+```
+
 # Apache Dubbo (incubating) Project
 
 [![Build Status](https://travis-ci.org/apache/incubator-dubbo.svg?branch=master)](https://travis-ci.org/apache/incubator-dubbo)

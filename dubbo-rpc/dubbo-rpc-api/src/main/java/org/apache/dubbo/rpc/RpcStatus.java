@@ -33,10 +33,18 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RpcStatus {
 
     private static final ConcurrentMap<String, RpcStatus> SERVICE_STATISTICS = new ConcurrentHashMap<String, RpcStatus>();
-
+    /**
+     * 缓存数据，<url, <methodName, RpcStatus>>
+     */
     private static final ConcurrentMap<String, ConcurrentMap<String, RpcStatus>> METHOD_STATISTICS = new ConcurrentHashMap<String, ConcurrentMap<String, RpcStatus>>();
     private final ConcurrentMap<String, Object> values = new ConcurrentHashMap<String, Object>();
+    /**
+     * 当前激活并发数
+     */
     private final AtomicInteger active = new AtomicInteger();
+    /**
+     * 总调用次数
+     */
     private final AtomicLong total = new AtomicLong();
     private final AtomicInteger failed = new AtomicInteger();
     private final AtomicLong totalElapsed = new AtomicLong();
@@ -71,6 +79,7 @@ public class RpcStatus {
     }
 
     /**
+     * 获取方法对应的 RpcStatus
      * @param url
      * @param methodName
      * @return status
@@ -101,27 +110,36 @@ public class RpcStatus {
         }
     }
 
+    /**
+     * 指定方法的并发统计递增
+     */
     public static void beginCount(URL url, String methodName) {
         beginCount(url, methodName, Integer.MAX_VALUE);
     }
 
     /**
+     *
+     * 返回false表示超过最大限制
      * @param url
      */
     public static boolean beginCount(URL url, String methodName, int max) {
         max = (max <= 0) ? Integer.MAX_VALUE : max;
         RpcStatus appStatus = getStatus(url);
         RpcStatus methodStatus = getStatus(url, methodName);
+        // 判断方法是否超过最大并发限制
         if (methodStatus.active.incrementAndGet() > max) {
+            // 超过则无法直接调用，并发激活-1
             methodStatus.active.decrementAndGet();
             return false;
         } else {
+            // 当前未超过最大并发限制，服务的当前并发统计+1
             appStatus.active.incrementAndGet();
             return true;
         }
     }
 
     /**
+     * 完成调用，对应的激活并发数-1
      * @param url
      * @param elapsed
      * @param succeeded

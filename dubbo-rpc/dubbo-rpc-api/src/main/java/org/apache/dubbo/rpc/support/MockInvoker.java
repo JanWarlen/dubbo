@@ -98,8 +98,10 @@ final public class MockInvoker<T> implements Invoker<T> {
         if (StringUtils.isBlank(mock)) {
             throw new RpcException(new IllegalAccessException("mock can not be null. url :" + url));
         }
+        // mock 类型
         mock = normalizeMock(URL.decode(mock));
         if (mock.startsWith(Constants.RETURN_PREFIX)) {
+            // return
             mock = mock.substring(Constants.RETURN_PREFIX.length()).trim();
             try {
                 Type[] returnTypes = RpcUtils.getReturnTypes(invocation);
@@ -110,6 +112,7 @@ final public class MockInvoker<T> implements Invoker<T> {
                         + ", mock:" + mock + ", url: " + url, ew);
             }
         } else if (mock.startsWith(Constants.THROW_PREFIX)) {
+            // throw
             mock = mock.substring(Constants.THROW_PREFIX.length()).trim();
             if (StringUtils.isBlank(mock)) {
                 throw new RpcException("mocked exception for service degradation.");
@@ -118,8 +121,11 @@ final public class MockInvoker<T> implements Invoker<T> {
                 throw new RpcException(RpcException.BIZ_EXCEPTION, t);
             }
         } else { //impl mock
+            // mock 实现类
             try {
+                // 获取mock代理的invoker
                 Invoker<T> invoker = getInvoker(mock);
+                // 调用mock实现类
                 return invoker.invoke(invocation);
             } catch (Throwable t) {
                 throw new RpcException("Failed to create mock implementation class " + mock, t);
@@ -154,11 +160,14 @@ final public class MockInvoker<T> implements Invoker<T> {
         if (invoker != null) {
             return invoker;
         }
-
+        // 不存在则需要创建代理，并缓存（第一次触发）
         Class<T> serviceType = (Class<T>) ReflectUtils.forName(url.getServiceInterface());
+        // 获取mock实现类实例
         T mockObject = (T) getMockObject(mockService, serviceType);
+        // 代理
         invoker = proxyFactory.getInvoker(mockObject, serviceType, url);
         if (mocks.size() < 10000) {
+            // 内置了上限，可能是避免过度消耗内存？
             mocks.put(mockService, invoker);
         }
         return invoker;
@@ -167,16 +176,20 @@ final public class MockInvoker<T> implements Invoker<T> {
     @SuppressWarnings("unchecked")
     public static Object getMockObject(String mockService, Class serviceType) {
         if (ConfigUtils.isDefault(mockService)) {
+            // mock类型为true或者default
             mockService = serviceType.getName() + "Mock";
         }
-
+        // 反射加载字节码创建class
+        // 如果没有接口实现类，则抛出异常
         Class<?> mockClass = ReflectUtils.forName(mockService);
         if (!serviceType.isAssignableFrom(mockClass)) {
+            // 不是实现类
             throw new IllegalStateException("The mock class " + mockClass.getName() +
                     " not implement interface " + serviceType.getName());
         }
 
         try {
+            // 创建实例
             return mockClass.newInstance();
         } catch (InstantiationException e) {
             throw new IllegalStateException("No default constructor from mock class " + mockClass.getName(), e);

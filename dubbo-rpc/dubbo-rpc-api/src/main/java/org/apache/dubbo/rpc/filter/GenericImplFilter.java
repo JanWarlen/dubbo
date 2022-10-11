@@ -55,6 +55,7 @@ public class GenericImplFilter implements Filter {
         if (ProtocolUtils.isGeneric(generic)
                 && !Constants.$INVOKE.equals(invocation.getMethodName())
                 && invocation instanceof RpcInvocation) {
+            // 有泛化调用参数generic，但是不是常规的泛化调用触发（GenericService.$invoke）
             RpcInvocation invocation2 = (RpcInvocation) invocation;
             String methodName = invocation2.getMethodName();
             Class<?>[] parameterTypes = invocation2.getParameterTypes();
@@ -145,14 +146,14 @@ public class GenericImplFilter implements Filter {
             return result;
         }
 
+        // 是否是泛化调用
         if (invocation.getMethodName().equals(Constants.$INVOKE)
                 && invocation.getArguments() != null
                 && invocation.getArguments().length == 3
                 && ProtocolUtils.isGeneric(generic)) {
-
+            // 获取泛化参数
             Object[] args = (Object[]) invocation.getArguments()[2];
             if (ProtocolUtils.isJavaGenericSerialization(generic)) {
-
                 for (Object arg : args) {
                     if (!(byte[].class == arg.getClass())) {
                         error(generic, byte[].class.getName(), arg.getClass().getName());
@@ -165,10 +166,11 @@ public class GenericImplFilter implements Filter {
                     }
                 }
             }
-
+            // 标记泛化调用
             ((RpcInvocation) invocation).setAttachment(
                     Constants.GENERIC_KEY, invoker.getUrl().getParameter(Constants.GENERIC_KEY));
         }
+        // 发起远程调用，转发到 DubboInvoker
         return invoker.invoke(invocation);
     }
 

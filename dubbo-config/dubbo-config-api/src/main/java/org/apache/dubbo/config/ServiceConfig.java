@@ -324,16 +324,21 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         checkMock(interfaceClass);
     }
 
+    /**
+     * 服务发布启动入口
+     */
     public synchronized void export() {
         checkAndUpdateSubConfigs();
 
+        // 是否需要导出服务（发布？）
         if (!shouldExport()) {
             return;
         }
-
+        // 延迟发布
         if (shouldDelay()) {
             delayExportExecutor.schedule(this::doExport, delay, TimeUnit.MILLISECONDS);
         } else {
+            // 直接发布
             doExport();
         }
     }
@@ -409,6 +414,8 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void doExportUrls() {
+        // 加载所有服务注册中心对象
+        // 此处会将配置的注册url协议转换为 registry
         List<URL> registryURLs = loadRegistries(true);
         for (ProtocolConfig protocolConfig : protocols) {
             String pathKey = URL.buildKey(getContextPath(protocolConfig).map(p -> p + "/" + path).orElse(path), group, version);
@@ -433,6 +440,8 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         appendParameters(map, protocolConfig);
         appendParameters(map, this);
         if (CollectionUtils.isNotEmpty(methods)) {
+            // 解析 MethodConfig 配置
+            // 解析 方法级别的配置
             for (MethodConfig method : methods) {
                 appendParameters(map, method, method.getName());
                 String retryKey = method.getName() + ".retry";
@@ -487,11 +496,12 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                 }
             } // end of methods for
         }
-
         if (ProtocolUtils.isGeneric(generic)) {
+            // 泛型调用处理，设置泛型类型
             map.put(Constants.GENERIC_KEY, generic);
             map.put(Constants.METHODS_KEY, Constants.ANY_VALUE);
         } else {
+            // 常规调用，拼接Url参数
             String revision = Version.getVersion(interfaceClass, version);
             if (revision != null && revision.length() > 0) {
                 map.put("revision", revision);
@@ -514,7 +524,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
         // export service
         String host = this.findConfigedHosts(protocolConfig, registryURLs, map);
+        // 此处进行 protocol 的 wrapper 增强
         Integer port = this.findConfigedPorts(protocolConfig, name, map);
+        // 拼接URL
         URL url = new URL(name, host, port, getContextPath(protocolConfig).map(p -> p + "/" + path).orElse(path), map);
 
         if (ExtensionLoader.getExtensionLoader(ConfiguratorFactory.class)
@@ -523,16 +535,20 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                     .getExtension(url.getProtocol()).getConfigurator(url).configure(url);
         }
 
+        // 导出服务： 本地服务、远程服务
         String scope = url.getParameter(Constants.SCOPE_KEY);
         // don't export when none is configured
+        // 如果 scope 是 none 则不导出（发布）服务
         if (!Constants.SCOPE_NONE.equalsIgnoreCase(scope)) {
 
             // export to local if the config is not remote (export to remote only when config is remote)
             if (!Constants.SCOPE_REMOTE.equalsIgnoreCase(scope)) {
+                // 如果 scope 不是 remote ，则发布为本地服务
                 exportLocal(url);
             }
             // export to remote if the config is not local (export to local only when config is local)
             if (!Constants.SCOPE_LOCAL.equalsIgnoreCase(scope)) {
+                // 如果 scope 不是 local，发布为远程服务
                 if (logger.isInfoEnabled()) {
                     logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url);
                 }
@@ -548,14 +564,39 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                         }
 
                         // For providers, this is used to enable custom proxy to generate invoker
+                        // 如果指定了 proxy 协议，则使用指定的
                         String proxy = url.getParameter(Constants.PROXY_KEY);
                         if (StringUtils.isNotEmpty(proxy)) {
                             registryURL = registryURL.addParameter(Constants.PROXY_KEY, proxy);
                         }
-
+                        // 代理增强
+                        // 先执行扩展接口 ProxyFactory$Adaptive 的 getInvoker 方法，内部会根据指定的 proxy 类型选择代理工厂
+                        // 默认为 javassist
                         Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
+
                         DelegateProviderMetaDataInvoker wrapperInvoker = new DelegateProviderMetaDataInvoker(invoker, this);
 
+                        // 服务发布到注册中心
+                        // 实际调用的是适配器类 Protocol$Adaptive 的 export 方法，内部会根据url中的protocol类型选择对应的实现类
+                        /* 此代码为 Protocol$Adaptive 的 export 实际代码
+                        public org.apache.dubbo.rpc.Exporter export(org.apache.dubbo.rpc.Invoker arg0) throws org.apache.dubbo.rpc.RpcException {
+                            if (arg0 == null)
+                                throw new IllegalArgumentException("org.apache.dubbo.rpc.Invoker argument == null");
+
+                            if (arg0.getUrl() == null)
+                                throw new IllegalArgumentException("org.apache.dubbo.rpc.Invoker argument getUrl() == null");
+
+                            org.apache.dubbo.common.URL url = arg0.getUrl();
+                            // 正常情况下，因为注册协议在前置步骤都会转换为 registry，此处的 extName 也会是 registry
+                            String extName = ( url.getProtocol() == null ? "dubbo" : url.getProtocol() );
+                            if(extName == null)
+                                throw new IllegalStateException("Failed to get extension (org.apache.dubbo.rpc.Protocol) name from url (" + url.toString() + ") use keys([protocol])");
+                            // 则此时会调用到 registry 对应的 export，即 RegistryProtocol
+                            org.apache.dubbo.rpc.Protocol extension = (org.apache.dubbo.rpc.Protocol)ExtensionLoader.getExtensionLoader(org.apache.dubbo.rpc.Protocol.class).getExtension(extName);
+                            return extension.export(arg0);
+                        }
+                        */
+                        // 增强SPI会将protocol类额外装饰增强， QosProtocolWrapper -> ProtocolListenerWrapper -> ProtocolFilterWrapper -> 具体实现protocol
                         Exporter<?> exporter = protocol.export(wrapperInvoker);
                         exporters.add(exporter);
                     }
@@ -693,6 +734,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             if (provider != null && (portToBind == null || portToBind == 0)) {
                 portToBind = provider.getPort();
             }
+            // getExtension 触发了 protocol 的 wrapper 类遍历装饰，此处进行 wrapper 增强
             final int defaultPort = ExtensionLoader.getExtensionLoader(Protocol.class).getExtension(name).getDefaultPort();
             if (portToBind == null || portToBind == 0) {
                 portToBind = defaultPort;

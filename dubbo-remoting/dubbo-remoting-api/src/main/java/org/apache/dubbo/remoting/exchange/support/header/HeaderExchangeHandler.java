@@ -100,6 +100,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
         Object msg = req.getData();
         try {
             // handle data.
+            // 异步编程，不阻塞 dubbo 内部的处理线程池
             CompletableFuture<Object> future = handler.reply(channel, msg);
             if (future.isDone()) {
                 res.setStatus(Response.OK);
@@ -192,13 +193,16 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
         try {
             if (message instanceof Request) {
                 // handle request.
+                // 处理请求
                 Request request = (Request) message;
                 if (request.isEvent()) {
                     handlerEvent(channel, request);
                 } else {
                     if (request.isTwoWay()) {
+                        // 需要有返回值
                         handleRequest(exchangeChannel, request);
                     } else {
+                        // 无需返回值
                         handler.received(exchangeChannel, request.getData());
                     }
                 }

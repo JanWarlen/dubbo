@@ -39,7 +39,9 @@ public abstract class AbstractLoadBalance implements LoadBalance {
      * @return weight which takes warmup into account
      */
     static int calculateWarmupWeight(int uptime, int warmup, int weight) {
+        // 权重 * 存活时间和预热时间的比率
         int ww = (int) ((float) uptime / ((float) warmup / (float) weight));
+        // 确保权重不会小于1并且不会大于配置权重
         return ww < 1 ? 1 : (ww > weight ? weight : ww);
     }
 
@@ -51,6 +53,7 @@ public abstract class AbstractLoadBalance implements LoadBalance {
         if (invokers.size() == 1) {
             return invokers.get(0);
         }
+        // 调用子类实现
         return doSelect(invokers, url, invocation);
     }
 
@@ -66,17 +69,23 @@ public abstract class AbstractLoadBalance implements LoadBalance {
      * @return weight
      */
     protected int getWeight(Invoker<?> invoker, Invocation invocation) {
+        // 获取配置参数中的权重，默认100
         int weight = invoker.getUrl().getMethodParameter(invocation.getMethodName(), Constants.WEIGHT_KEY, Constants.DEFAULT_WEIGHT);
         if (weight > 0) {
+            // 服务发布时间
             long timestamp = invoker.getUrl().getParameter(Constants.REMOTE_TIMESTAMP_KEY, 0L);
             if (timestamp > 0L) {
+                // 计算存活时间
                 int uptime = (int) (System.currentTimeMillis() - timestamp);
+                // 获取配置参数中的预热时间，默认 10 分钟
                 int warmup = invoker.getUrl().getParameter(Constants.WARMUP_KEY, Constants.DEFAULT_WARMUP);
                 if (uptime > 0 && uptime < warmup) {
+                    // 如果服务提供者还没有过预热时间，则需要重新计算权重
                     weight = calculateWarmupWeight(uptime, warmup, weight);
                 }
             }
         }
+        // 权重不会小于0
         return weight >= 0 ? weight : 0;
     }
 

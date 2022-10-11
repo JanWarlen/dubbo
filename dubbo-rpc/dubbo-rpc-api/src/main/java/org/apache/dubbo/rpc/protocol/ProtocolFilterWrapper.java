@@ -46,8 +46,11 @@ public class ProtocolFilterWrapper implements Protocol {
 
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
+        // 此处是根据url内部参数加载 filter 构建责任链
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
         if (!filters.isEmpty()) {
+            // 构建责任链
+            // provider : EchoFilter -> ClassloaderFilter -> GenericFilter -> ContextFilter -> TraceFilter -> TimeoutFilter -> MonitorFilter -> ExceptionFilter
             for (int i = filters.size() - 1; i >= 0; i--) {
                 final Filter filter = filters.get(i);
                 final Invoker<T> next = last;
@@ -70,12 +73,15 @@ public class ProtocolFilterWrapper implements Protocol {
 
                     @Override
                     public Result invoke(Invocation invocation) throws RpcException {
+                        // 责任链调用下一个环节
                         Result result = filter.invoke(next, invocation);
                         if (result instanceof AsyncRpcResult) {
+                            // 异步
                             AsyncRpcResult asyncResult = (AsyncRpcResult) result;
                             asyncResult.thenApplyWithContext(r -> filter.onResponse(r, invoker, invocation));
                             return asyncResult;
                         } else {
+                            // 同步
                             return filter.onResponse(result, invoker, invocation);
                         }
                     }
@@ -92,6 +98,7 @@ public class ProtocolFilterWrapper implements Protocol {
                 };
             }
         }
+        // 由于是责任链模式，因此仅返回头部的filter即可
         return last;
     }
 
@@ -105,6 +112,7 @@ public class ProtocolFilterWrapper implements Protocol {
         if (Constants.REGISTRY_PROTOCOL.equals(invoker.getUrl().getProtocol())) {
             return protocol.export(invoker);
         }
+        // buildInvokerChain 中针对 invoker 使用责任链模式
         return protocol.export(buildInvokerChain(invoker, Constants.SERVICE_FILTER_KEY, Constants.PROVIDER));
     }
 

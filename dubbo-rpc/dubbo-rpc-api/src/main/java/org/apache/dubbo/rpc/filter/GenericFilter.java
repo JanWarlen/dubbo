@@ -51,29 +51,37 @@ public class GenericFilter implements Filter {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation inv) throws RpcException {
+        // 判断是否是泛化请求
         if (inv.getMethodName().equals(Constants.$INVOKE)
                 && inv.getArguments() != null
                 && inv.getArguments().length == 3
                 && !GenericService.class.isAssignableFrom(invoker.getInterface())) {
+            // 调用方法名
             String name = ((String) inv.getArguments()[0]).trim();
+            // 参数类型
             String[] types = (String[]) inv.getArguments()[1];
+            // 参数值
             Object[] args = (Object[]) inv.getArguments()[2];
             try {
+                // 反射获取调用方法
                 Method method = ReflectUtils.findMethodByMethodSignature(invoker.getInterface(), name, types);
                 Class<?>[] params = method.getParameterTypes();
                 if (args == null) {
                     args = new Object[params.length];
                 }
+                // 泛化类型
                 String generic = inv.getAttachment(Constants.GENERIC_KEY);
 
                 if (StringUtils.isBlank(generic)) {
                     generic = RpcContext.getContext().getAttachment(Constants.GENERIC_KEY);
                 }
-
+                // 反序列化
                 if (StringUtils.isEmpty(generic)
                         || ProtocolUtils.isDefaultGenericSerialization(generic)) {
+                    // 泛化类型为空 或者 generic=true
                     args = PojoUtils.realize(args, params, method.getGenericParameterTypes());
                 } else if (ProtocolUtils.isJavaGenericSerialization(generic)) {
+                    // generic=nativejava
                     for (int i = 0; i < args.length; i++) {
                         if (byte[].class == args[i].getClass()) {
                             try(UnsafeByteArrayInputStream is = new UnsafeByteArrayInputStream((byte[]) args[i])) {
@@ -94,6 +102,7 @@ public class GenericFilter implements Filter {
                         }
                     }
                 } else if (ProtocolUtils.isBeanGenericSerialization(generic)) {
+                    // generic=bean
                     for (int i = 0; i < args.length; i++) {
                         if (args[i] instanceof JavaBeanDescriptor) {
                             args[i] = JavaBeanSerializeUtil.deserialize((JavaBeanDescriptor) args[i]);
@@ -108,11 +117,14 @@ public class GenericFilter implements Filter {
                         }
                     }
                 }
+                // filter链传递
                 Result result = invoker.invoke(new RpcInvocation(method, args, inv.getAttachments()));
                 if (result.hasException()
                         && !(result.getException() instanceof GenericException)) {
+                    // 非 GenericException 异常
                     return new RpcResult(new GenericException(result.getException()));
                 }
+                // 结果序列化处理
                 if (ProtocolUtils.isJavaGenericSerialization(generic)) {
                     try {
                         UnsafeByteArrayOutputStream os = new UnsafeByteArrayOutputStream(512);
@@ -134,6 +146,7 @@ public class GenericFilter implements Filter {
                 throw new RpcException(e.getMessage(), e);
             }
         }
+        // 非泛型调用，filter链传递
         return invoker.invoke(inv);
     }
 

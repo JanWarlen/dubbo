@@ -45,13 +45,19 @@ public class ActiveLimitFilter implements Filter {
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
         URL url = invoker.getUrl();
         String methodName = invocation.getMethodName();
+        // 最大并发数，默认0
         int max = invoker.getUrl().getMethodParameter(methodName, Constants.ACTIVES_KEY, 0);
         RpcStatus count = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName());
+        // 判断是否超过并发限制
         if (!count.beginCount(url, methodName, max)) {
+            // 超过最大并发限制
+            // 超时配置
             long timeout = invoker.getUrl().getMethodParameter(invocation.getMethodName(), Constants.TIMEOUT_KEY, 0);
             long start = System.currentTimeMillis();
             long remain = timeout;
+            // 利用锁，阻塞其他并发调用
             synchronized (count) {
+                // 阻塞当前线程 timeout 时间
                 while (!count.beginCount(url, methodName, max)) {
                     try {
                         count.wait(remain);
@@ -61,6 +67,7 @@ public class ActiveLimitFilter implements Filter {
                     long elapsed = System.currentTimeMillis() - start;
                     remain = timeout - elapsed;
                     if (remain <= 0) {
+                        // 超时还未被唤醒
                         throw new RpcException("Waiting concurrent invoke timeout in client-side for service:  "
                                 + invoker.getInterface().getName() + ", method: "
                                 + invocation.getMethodName() + ", elapsed: " + elapsed
@@ -79,8 +86,10 @@ public class ActiveLimitFilter implements Filter {
             isSuccess = false;
             throw t;
         } finally {
+            // 调用完成，需要将激活调用数减去1
             count.endCount(url, methodName, System.currentTimeMillis() - begin, isSuccess);
             if (max > 0) {
+                // 有并发限制场景中，将阻塞的并发请求唤醒
                 synchronized (count) {
                     count.notifyAll();
                 }

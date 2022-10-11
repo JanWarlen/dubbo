@@ -53,6 +53,7 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
         needReconnect = url.getParameter(Constants.SEND_RECONNECT_KEY, false);
 
         try {
+            // 启动 netty client
             doOpen();
         } catch (Throwable t) {
             close();
@@ -62,6 +63,7 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
         }
         try {
             // connect.
+            // 连接目标端 server
             connect();
             if (logger.isInfoEnabled()) {
                 logger.info("Start " + getClass().getSimpleName() + " " + NetUtils.getLocalAddress() + " connect to the server " + getRemoteAddress());

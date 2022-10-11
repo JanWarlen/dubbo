@@ -69,16 +69,19 @@ public class MockClusterInvoker<T> implements Invoker<T> {
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
-
+        // 获取url中mock字段值，默认false
         String value = directory.getUrl().getMethodParameter(invocation.getMethodName(), Constants.MOCK_KEY, Boolean.FALSE.toString()).trim();
         if (value.length() == 0 || value.equalsIgnoreCase("false")) {
             //no mock
+            // 正常调用逻辑，无mock行为，调用 FailoverClusterInvoker(默认情况下)
             result = this.invoker.invoke(invocation);
         } else if (value.startsWith("force")) {
+            // 设置了 force:return
             if (logger.isWarnEnabled()) {
                 logger.warn("force-mock: " + invocation.getMethodName() + " force-mock enabled , url : " + directory.getUrl());
             }
             //force:direct mock
+            // 直接返回mock值
             result = doMockInvoke(invocation, null);
         } else {
             //fail-mock
@@ -92,6 +95,7 @@ public class MockClusterInvoker<T> implements Invoker<T> {
                 if (logger.isWarnEnabled()) {
                     logger.warn("fail-mock: " + invocation.getMethodName() + " fail-mock enabled , url : " + directory.getUrl(), e);
                 }
+                // 远程调用失败才会触发 mock
                 result = doMockInvoke(invocation, e);
             }
         }
@@ -105,6 +109,7 @@ public class MockClusterInvoker<T> implements Invoker<T> {
 
         List<Invoker<T>> mockInvokers = selectMockInvoker(invocation);
         if (CollectionUtils.isEmpty(mockInvokers)) {
+            // 创建一个 MockInvoker
             minvoker = (Invoker<T>) new MockInvoker(directory.getUrl());
         } else {
             minvoker = mockInvokers.get(0);

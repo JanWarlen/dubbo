@@ -31,6 +31,7 @@ public class ChannelHandlers {
     }
 
     public static ChannelHandler wrap(ChannelHandler handler, URL url) {
+        // 装饰模式封装增强
         return ChannelHandlers.getInstance().wrapInternal(handler, url);
     }
 

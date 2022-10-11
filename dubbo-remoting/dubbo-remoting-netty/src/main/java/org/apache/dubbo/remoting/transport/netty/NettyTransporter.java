@@ -29,6 +29,7 @@ public class NettyTransporter implements Transporter {
 
     @Override
     public Server bind(URL url, ChannelHandler listener) throws RemotingException {
+        // 调用构造函数时，会调用父类构造，在其中调用 doOpen 函数启动server
         return new NettyServer(url, listener);
     }
 

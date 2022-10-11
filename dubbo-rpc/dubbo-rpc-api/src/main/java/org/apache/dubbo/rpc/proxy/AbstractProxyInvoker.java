@@ -83,12 +83,17 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
     public Result invoke(Invocation invocation) throws RpcException {
         RpcContext rpcContext = RpcContext.getContext();
         try {
+            // 执行本地服务调用
             Object obj = doInvoke(proxy, invocation.getMethodName(), invocation.getParameterTypes(), invocation.getArguments());
             if (RpcUtils.isReturnTypeFuture(invocation)) {
+                // 异步
                 return new AsyncRpcResult((CompletableFuture<Object>) obj);
-            } else if (rpcContext.isAsyncStarted()) { // ignore obj in case of RpcContext.startAsync()? always rely on user to write back.
+            } else if (rpcContext.isAsyncStarted()) {
+                // ignore obj in case of RpcContext.startAsync()? always rely on user to write back.
+                // 使用 RpcContext.startAsync() 开启异步执行
                 return new AsyncRpcResult(((AsyncContextImpl)(rpcContext.getAsyncContext())).getInternalFuture());
             } else {
+                // 同步
                 return new RpcResult(obj);
             }
         } catch (InvocationTargetException e) {
