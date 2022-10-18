@@ -39,7 +39,7 @@ public class FixedThreadPool implements ThreadPool {
     public Executor getExecutor(URL url) {
         // 线程名
         String name = url.getParameter(Constants.THREAD_NAME_KEY, Constants.DEFAULT_THREAD_NAME);
-        // 线程池线程个数
+        // 线程池线程个数，默认200
         int threads = url.getParameter(Constants.THREADS_KEY, Constants.DEFAULT_THREADS);
         // 线程池队列大小
         int queues = url.getParameter(Constants.QUEUES_KEY, Constants.DEFAULT_QUEUES);

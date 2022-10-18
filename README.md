@@ -15,7 +15,9 @@
 或者
 `org.apache.dubbo.remoting.transport.netty4.NettyServerHandler`
 实际取决于启动的是哪一个版本，默认情况下，启动 netty4
-> 内部关键的 handler 是经过装饰模式层层封装的
+> 内部关键的 handler 是经过装饰模式层层封装的，在创建 NettyServer 实例时，会调用 ChannelHandlers.wrap 对 handler 进行封装
+> 一般情况下，最内层的 handler 是 org.apache.dubbo.rpc.protocol.dubbo.DubboProtocol#requestHandler
+> 在发布服务的过程中，会层层装饰增强
 # 服务消费
 ## 服务消费启动入口
 `org.apache.dubbo.config.ReferenceConfig#get`

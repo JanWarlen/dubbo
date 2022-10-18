@@ -40,7 +40,7 @@ public class LimitedThreadPool implements ThreadPool {
         String name = url.getParameter(Constants.THREAD_NAME_KEY, Constants.DEFAULT_THREAD_NAME);
         // 核心线程数
         int cores = url.getParameter(Constants.CORE_THREADS_KEY, Constants.DEFAULT_CORE_THREADS);
-        // 最大线程数
+        // 最大线程数，默认200
         int threads = url.getParameter(Constants.THREADS_KEY, Constants.DEFAULT_THREADS);
         // 队列大小
         int queues = url.getParameter(Constants.QUEUES_KEY, Constants.DEFAULT_QUEUES);

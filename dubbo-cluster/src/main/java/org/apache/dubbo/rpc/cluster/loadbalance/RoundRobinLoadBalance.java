@@ -115,7 +115,7 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
                 // 权重变化
                 weightedRoundRobin.setWeight(weight);
             }
-            //
+            // 每次遍历访问都累加当前的权重一次，用于轮询选择实现，核心
             long cur = weightedRoundRobin.increaseCurrent();
             weightedRoundRobin.setLastUpdate(now);
             if (cur > maxCurrent) {
